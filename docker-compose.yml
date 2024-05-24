@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: ./api
+    container_name: laravel_app
+    volumes:
+      - ./api:/var/www/html
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - DB_CONNECTION=pgsql
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=postgres
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+    depends_on:
+      - db
+      - postfix
+    command: >
+      sh -c "
+      php artisan migrate &&
+      php artisan db:seed &&
+      php artisan serve --host=0.0.0.0 --port=8000
+      "
+
+  db:
+    image: postgres:13
+    container_name: laravel_db
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  postfix:
+    build:
+      context: ./postfix
+    container_name: postfix
+    environment:
+      - RELAYHOST=smtp.gmail.com:587
+      - RELAYHOST_USERNAME=wailhadad01@gmail.com
+      - RELAYHOST_PASSWORD=your-app-password
+      - POSTFIX_smtp_use_tls=yes
+      - POSTFIX_smtp_tls_security_level=encrypt
+      - POSTFIX_smtp_sasl_auth_enable=yes
+      - POSTFIX_smtp_sasl_password_maps=hash:/etc/postfix/sasl_passwd
+      - POSTFIX_smtp_sasl_security_options=noanonymous
+    ports:
+      - "587:587"
+    volumes:
+      - /etc/postfix
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: vue_frontend
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "8080:80"
+    command: sh -c "npm install && npm run serve"
+    depends_on:
+      - app
+
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+      - frontend
+
+volumes:
+  db_data:
